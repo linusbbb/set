@@ -145,39 +145,41 @@ export default class ExportControl extends Control {
     const currentSourceMap = store.state.selectedSourceMap
     store.commit('setSourceMap', new EmptyMap().getIdentifier())
     const visibleLayers = store.state.featureLayers.filter(layer => layer.getVisible())
-    visibleLayers.forEach(layer => layer.setVisible(false))
-    setMapScale(this.map.getView(), scale)
-    this.map.getView().setRotation(0)
-    const resolution = this.map.getView().getResolution()
+    try {
+      visibleLayers.forEach(layer => layer.setVisible(false))
+      setMapScale(this.map.getView(), scale)
+      this.map.getView().setRotation(0)
+      const resolution = this.map.getView().getResolution()
 
-    const exportCanvases = await this.getSiteplanSheetcutExportCanvas(
-      sheetCutFeatures,
-      visibleLayers,
-      resolution ?? 1
-    )
+      const exportCanvases = await this.getSiteplanSheetcutExportCanvas(
+        sheetCutFeatures,
+        visibleLayers,
+        resolution ?? 1
+      )
 
-    store.commit('setSourceMap', currentSourceMap)
-    visibleLayers.forEach(layer => layer.setVisible(true))
-    this.map.getView().setRotation(originalRotation)
-    this.map.getView().setZoom(originalZoomLvl ?? 10)
-    this.map.getView().setCenter(originalViewCenter)
+      result.push(...exportCanvases.filter(canvas => canvas !== null))
 
-    result.push(...exportCanvases.filter(canvas => canvas !== null))
+      const link = document.createElement('a')
+      let index = 0
+      for (const c of result) {
+        link.setAttribute('download', `siteplan_sheetcut_${c.sheetCutName ?? index}`)
+        console.log(`siteplan_sheetcut_${c.sheetCutName ?? index}`)
+        if (link) {
+          link.href = c.canvas.toDataURL()
+          link.click()
+        }
 
-    const link = document.createElement('a')
-    let index = 0
-    for (const c of result) {
-      link.setAttribute('download', `siteplan_sheetcut_${c.sheetCutName ?? index}`)
-      console.log(`siteplan_sheetcut_${c.sheetCutName ?? index}`)
-      if (link) {
-        link.href = c.canvas.toDataURL()
-        link.click()
+        index++
+        await new Promise(resolve => setTimeout(resolve, 500))
       }
-
-      index++
-      await new Promise(resolve => setTimeout(resolve, 500) )
+    } finally {
+      this.lockMapDuringExport(false)
+      store.commit('setSourceMap', currentSourceMap)
+      visibleLayers.forEach(layer => layer.setVisible(true))
+      this.map.getView().setRotation(originalRotation)
+      this.map.getView().setZoom(originalZoomLvl ?? 10)
+      this.map.getView().setCenter(originalViewCenter)
     }
-    this.lockMapDuringExport(false)
   }
 
   private async getSiteplanSheetcutExportCanvas (
@@ -189,12 +191,15 @@ export default class ExportControl extends Control {
     for (const sheetCutFeature of sheetCutFeatures) {
       const featureData = getFeatureData(sheetCutFeature) as SheetCutFeatureData
       const directionLineCoords = featureData.directionLine.getCoordinates()
-      const directionLineAngle = angle(directionLineCoords[1], directionLineCoords[0])
       const sheetCutGeometry = sheetCutFeature.getGeometry()
-      const anchor = directionLineCoords[1]
       if (!sheetCutGeometry) {
         return []
       }
+
+      const directionLineAngle = directionLineCoords.length > 1
+        ? angle(directionLineCoords[1], directionLineCoords[0])
+        : toRad(90)
+      const anchor = (sheetCutGeometry as Polygon).getFirstCoordinate()
 
       // To fit the size of the sheet cut, the sheet cut was rotated
       // to align with the North Pole and then split to match the size of the viewport.
