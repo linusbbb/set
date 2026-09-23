@@ -51,7 +51,7 @@ class LayoutTransformator {
 			val layoutInfo = SiteplanFactory.eINSTANCE.createLayoutinfo
 			layoutInfo.guid = identitaet?.wert
 			layoutInfo.label = bezeichnung?.bezeichnungLageplan?.wert
-			IDLageplanBlattschnitt.forEach [
+			IDLageplanBlattschnitt.filter[value !== null].forEach [
 				layoutInfo.sheetsCut.add(value.transformSheetCut)
 			]
 			siteplan.layoutInfo.add(layoutInfo)
